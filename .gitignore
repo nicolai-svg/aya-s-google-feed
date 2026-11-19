@@ -5,3 +5,4 @@ __pycache__/
 
 authorize_url.txt
 .venv/
+.env.ww

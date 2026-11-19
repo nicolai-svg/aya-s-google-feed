@@ -330,10 +330,12 @@ def main():
     ap = argparse.ArgumentParser(description="Generate the Google Shopping feed.")
     ap.add_argument("--self-test", action="store_true",
                     help="Build the feed from a built-in sample product (no network).")
-    ap.add_argument("--out", default=os.environ.get("OUTPUT_PATH", "output/google_feed.xml"))
+    ap.add_argument("--out", default=None, help="Output path (else OUTPUT_PATH env or default).")
+    ap.add_argument("--env", default=".env", help="Which .env file to load (e.g. .env.ww).")
     args = ap.parse_args()
 
-    _load_dotenv()
+    _load_dotenv(args.env)
+    out = args.out or os.environ.get("OUTPUT_PATH", "output/google_feed.xml")
     settings = {
         "store_url": cfg("STORE_URL", "https://aya-s.com"),
         "currency": cfg("FEED_CURRENCY", "DKK"),
@@ -351,11 +353,11 @@ def main():
         items.extend(product_to_items(node, settings))
 
     tree = build_feed(items, link=settings["store_url"])
-    write_feed(tree, args.out)
-    print(f"Wrote {len(items)} items from {products} products -> {args.out}")
+    write_feed(tree, out)
+    print(f"Wrote {len(items)} items from {products} products -> {out}")
 
     if args.self_test:
-        with open(args.out, encoding="utf-8") as fh:
+        with open(out, encoding="utf-8") as fh:
             print("\n--- feed preview ---")
             print(fh.read())
 

@@ -25,6 +25,7 @@ Usage
     python3 get_token.py
 """
 
+import argparse
 import http.server
 import os
 import secrets
@@ -65,7 +66,10 @@ def need(name):
 
 
 def main():
-    _load_dotenv()
+    ap = argparse.ArgumentParser(description="Mint an offline Admin API token.")
+    ap.add_argument("--env", default=".env", help="Which .env file to load/append (e.g. .env.ww).")
+    args = ap.parse_args()
+    _load_dotenv(args.env)
     shop = need("SHOPIFY_STORE_DOMAIN")
     client_id = need("APP_CLIENT_ID")
     client_secret = need("APP_CLIENT_SECRET")
@@ -124,10 +128,10 @@ def main():
     if not token:
         sys.exit(f"No access_token in response: {resp.text[:200]}")
 
-    with open(".env", "a", encoding="utf-8") as fh:
+    with open(args.env, "a", encoding="utf-8") as fh:
         fh.write(f"\nSHOPIFY_ADMIN_TOKEN={token}\n")
 
-    print(f"\nOffline token minted and appended to .env (ends ...{token[-4:]}).")
+    print(f"\nOffline token minted and appended to {args.env} (ends ...{token[-4:]}).")
     print("Next: copy that value from .env into your GitHub secret SHOPIFY_ADMIN_TOKEN,")
     print("then run:  python3 feed_google.py")
 

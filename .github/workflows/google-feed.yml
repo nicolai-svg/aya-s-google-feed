@@ -33,7 +33,7 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Generate feed into the Pages site folder
+      - name: Generate DK feed (main store)
         env:
           SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN }}
           SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
@@ -41,10 +41,20 @@ jobs:
           STORE_URL: ${{ vars.STORE_URL }}
           FEED_CURRENCY: ${{ vars.FEED_CURRENCY }}
           OUTPUT_PATH: _site/google_feed.xml
+        run: python3 feed_google.py
+
+      - name: Generate Worldwide feed
+        env:
+          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN_WW }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN_WW }}
+          SHOPIFY_API_VERSION: "2025-10"
+          STORE_URL: ${{ vars.STORE_URL_WW }}
+          FEED_CURRENCY: ${{ vars.FEED_CURRENCY_WW }}
+          OUTPUT_PATH: _site/google_feed_ww.xml
         run: |
           python3 feed_google.py
           # tiny landing page so the Pages root isn't a 404
-          printf '<!doctype html><meta charset="utf-8"><title>AYA-S feeds</title><p>Google feed: <a href="google_feed.xml">google_feed.xml</a></p>' > _site/index.html
+          printf '<!doctype html><meta charset="utf-8"><title>AYA-S feeds</title><p>Google feeds:</p><ul><li><a href="google_feed.xml">google_feed.xml</a> (DK / DKK)</li><li><a href="google_feed_ww.xml">google_feed_ww.xml</a> (Worldwide / EUR)</li></ul>' > _site/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:
