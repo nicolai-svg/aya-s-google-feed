@@ -54,7 +54,7 @@ jobs:
         run: |
           python3 feed_google.py
           # tiny landing page so the Pages root isn't a 404
-          printf '<!doctype html><meta charset="utf-8"><title>AYA-S feeds</title><p>Google feeds:</p><ul><li><a href="google_feed.xml">google_feed.xml</a> (DK / DKK)</li><li><a href="google_feed_ww.xml">google_feed_ww.xml</a> (Worldwide / EUR)</li><li><a href="google_reviews.xml">google_reviews.xml</a> (Product reviews, DK)</li></ul>' > _site/index.html
+          printf '<!doctype html><meta charset="utf-8"><title>AYA-S feeds</title><p>Google feeds:</p><ul><li><a href="google_feed.xml">google_feed.xml</a> (DK / DKK)</li><li><a href="google_feed_ww.xml">google_feed_ww.xml</a> (Worldwide / EUR)</li><li><a href="google_reviews.xml">google_reviews.xml</a> (Product reviews, DK)</li><li><a href="google_reviews_eu.xml">google_reviews_eu.xml</a> (Product reviews, EU)</li></ul>' > _site/index.html
 
       - name: Generate product reviews feed (Judge.me -> Google)
         env:
@@ -63,6 +63,23 @@ jobs:
           STORE_URL: ${{ vars.STORE_URL }}
           REVIEWS_OUTPUT_PATH: _site/google_reviews.xml
         run: python3 reviews_google.py
+
+      - name: Generate EU product reviews feed (Worldwide Judge.me -> Google)
+        env:
+          JUDGEME_PRIVATE_TOKEN: ${{ secrets.JUDGEME_PRIVATE_TOKEN_WW }}
+          JUDGEME_SHOP_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN_WW }}
+          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN_WW }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN_WW }}
+          SHOPIFY_API_VERSION: "2025-10"
+          STORE_URL: ${{ vars.STORE_URL_WW }}
+          REVIEWS_ENRICH: "1"
+          REVIEWS_OUTPUT_PATH: _site/google_reviews_eu.xml
+        run: |
+          if [ -z "$JUDGEME_PRIVATE_TOKEN" ]; then
+            echo "::warning::JUDGEME_PRIVATE_TOKEN_WW secret not set - skipping EU reviews feed"
+            exit 0
+          fi
+          python3 reviews_google.py
 
       - uses: actions/upload-pages-artifact@v3
         with:

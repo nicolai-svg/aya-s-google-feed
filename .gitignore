@@ -7,3 +7,4 @@ authorize_url.txt
 .venv/
 .env.ww
 .env.reviews
+.env.reviews.ww

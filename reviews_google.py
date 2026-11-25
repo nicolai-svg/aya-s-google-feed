@@ -18,8 +18,16 @@ Config (env or .env.reviews, loaded without needing to `source` it):
   STORE_URL               storefront base, e.g. https://aya-s.dk (for product URLs)
   REVIEWS_PUBLISHER       publisher name shown in the feed (default: AYA-S)
   REVIEWS_OUTPUT_PATH     output file (default: output/google_reviews.xml)
+  REVIEWS_ENRICH          "1" -> look products up in Shopify (needs SHOPIFY_STORE_DOMAIN +
+                          SHOPIFY_ADMIN_TOKEN) and add GTINs + variant IDs so Google can
+                          match reviews to offers by identifier, not just by URL.
+
+The same script serves several stores: pass --env to pick the config file, e.g.
+  python3 reviews_google.py                      # DK  (.env.reviews + .env)
+  python3 reviews_google.py --env .env.reviews.ww  # EU / Worldwide store
 """
 
+import argparse
 import os
 import sys
 import time
@@ -108,7 +116,25 @@ def sub(parent, tag, text=None, **attrib):
     return el
 
 
-def build_feed(reviews, store_url, publisher):
+def fetch_product_ids():
+    """Map Shopify product id -> {"gtins": [...], "variants": [...]} (active products)."""
+    from feed_google import fetch_all_products, numeric_id, looks_like_gtin
+
+    out = {}
+    for node in fetch_all_products():
+        gtins, variants = [], []
+        for edge in node["variants"]["edges"]:
+            v = edge["node"]
+            variants.append(numeric_id(v["id"]))
+            code = (v.get("barcode") or "").strip()
+            if looks_like_gtin(code) and code not in gtins:
+                gtins.append(code)
+        out[numeric_id(node["id"])] = {"gtins": gtins, "variants": variants}
+    return out
+
+
+def build_feed(reviews, store_url, publisher, product_ids=None):
+    product_ids = product_ids or {}
     store_url = store_url.rstrip("/")
     feed = ET.Element(
         "feed",
@@ -157,25 +183,37 @@ def build_feed(reviews, store_url, publisher):
         products = sub(rev, "products")
         product = sub(products, "product")
         pids = sub(product, "product_ids")
+        pid = str(r.get("product_external_id"))
+        extra = product_ids.get(pid, {})
+        if extra.get("gtins"):
+            gtins = sub(pids, "gtins")
+            for g in extra["gtins"]:
+                sub(gtins, "gtin", g)
         skus = sub(pids, "skus")
-        sub(skus, "sku", r.get("product_external_id"))
+        sub(skus, "sku", pid)
+        for vid in extra.get("variants", []):
+            sub(skus, "sku", vid)  # variant id == g:id in our product feeds
         brands = sub(pids, "brands")
         sub(brands, "brand", publisher)
         sub(product, "product_name", (r.get("product_title") or handle).strip())
         sub(product, "product_url", product_url)
+        sub(rev, "is_spam", "false")  # schema order: is_spam before transaction_id
         if str(r.get("verified") or "").startswith("verified") or r.get("verified") == "buyer":
-            trans = sub(rev, "transaction_id")
-            trans.text = f"jm-{r.get('id')}"
-        sub(rev, "is_spam", "false")
+            sub(rev, "transaction_id", f"jm-{r.get('id')}")
         kept += 1
 
     return feed, kept
 
 
 def main():
+    ap = argparse.ArgumentParser(description="Generate the Google product reviews feed.")
+    ap.add_argument("--env", action="append",
+                    help="config file(s) to load (default: .env.reviews then .env)")
+    args = ap.parse_args()
+
     here = os.path.dirname(os.path.abspath(__file__))
-    _load_dotenv(os.path.join(here, ".env.reviews"))
-    _load_dotenv(os.path.join(here, ".env"))  # for STORE_URL
+    for name in args.env or [".env.reviews", ".env"]:
+        _load_dotenv(os.path.join(here, name))
 
     token = need("JUDGEME_PRIVATE_TOKEN")
     shop = need("JUDGEME_SHOP_DOMAIN")
@@ -187,11 +225,20 @@ def main():
     reviews = fetch_all_reviews(token, shop)
     print(f"  pulled {len(reviews)} total reviews")
 
-    feed, kept = build_feed(reviews, store_url, publisher)
+    product_ids = {}
+    if os.environ.get("REVIEWS_ENRICH") == "1":
+        print("Looking up GTINs / variant IDs in Shopify ...")
+        product_ids = fetch_product_ids()
+        print(f"  {len(product_ids)} active products")
+
+    feed, kept = build_feed(reviews, store_url, publisher, product_ids)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     ET.indent(feed, space="  ")
     ET.ElementTree(feed).write(out_path, encoding="utf-8", xml_declaration=True)
     print(f"  wrote {kept} product reviews -> {out_path}")
+    if product_ids:
+        matched = sum(1 for r in feed.iter("review") if r.find(".//gtin") is not None)
+        print(f"  {matched}/{kept} reviews carry a GTIN")
     if kept < 50:
         print(f"  WARNING: only {kept} product reviews (Google Product Ratings needs >=50)")
 
