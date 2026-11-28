@@ -61,6 +61,11 @@ jobs:
           JUDGEME_PRIVATE_TOKEN: ${{ secrets.JUDGEME_PRIVATE_TOKEN }}
           JUDGEME_SHOP_DOMAIN: ${{ secrets.JUDGEME_SHOP_DOMAIN }}
           STORE_URL: ${{ vars.STORE_URL }}
+          # match reviews to GMC items: variant IDs (== g:id) + GTINs
+          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          SHOPIFY_API_VERSION: "2025-10"
+          REVIEWS_ENRICH: "1"
           REVIEWS_OUTPUT_PATH: _site/google_reviews.xml
         run: python3 reviews_google.py
 
